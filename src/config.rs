@@ -10,9 +10,9 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new() -> Result<Self, MyError> {
+    pub fn new(filename: &str) -> Result<Self, MyError> {
         Ok(Self {
-            players: create_players()?,
+            players: create_players(filename)?,
         })
     }
 }
@@ -34,13 +34,14 @@ impl Player {
     }
 }
 
-fn create_players() -> Result<Vec<Player>, MyError> {
-    let mut rdr = Reader::from_path("heroes.csv")?;
+fn create_players(filename: &str) -> Result<Vec<Player>, MyError> {
+    let mut rdr = Reader::from_path(filename)?;
     let mut players = rdr
         .headers()?
         .iter()
-        .map(|s| {
-            if s.is_empty() || s.contains("Das") {
+        .enumerate()
+        .map(|(i, s)| {
+            if s.is_empty() || i > 5 {
                 None
             } else {
                 Some(Player::new(s.to_owned()))
@@ -69,24 +70,32 @@ fn create_players() -> Result<Vec<Player>, MyError> {
         .filter_map(|player| player)
         .collect::<Vec<Player>>();
     if players.len() == 5 {
-        let mut flex = Player::new("Flex".to_owned());
-        let mut hashmap = HashMap::new();
-        for Player { expert, op, .. } in players.iter() {
-            for hero in expert {
-                *hashmap.entry(hero).or_insert(0) += 1;
-            }
-            for hero in op {
-                *hashmap.entry(hero).or_insert(0) += 1;
+        let mut flex = Player::new("Flex pick".to_owned());
+        let mut hashmap_support = HashMap::new();
+        let mut hashmap_cores = HashMap::new();
+        for ( index, Player { expert, op, name: _ }) in players.iter().enumerate() {
+            for hero in expert.iter().chain(op.iter()) {
+                match index {
+                    0 | 1 | 2 => {
+                        *hashmap_cores.entry(hero).or_insert(0) += 1;
+                    }
+                    3 | 4 => {
+                        *hashmap_support.entry(hero).or_insert(0) += 1;
+                    }
+                    n => {
+                        println!("{} not supported", n);
+                    }
+                }
             }
         }
-        flex.expert = hashmap
+        flex.expert = hashmap_cores
             .iter()
-            .filter(|(_, nu)| nu >= &&3)
+            .filter(|(_, nu)| nu >= &&2)
             .map(|(h, _)| h.to_string())
             .collect::<Vec<_>>();
-        flex.op = hashmap
+        flex.op = hashmap_support
             .iter()
-            .filter(|(_, nu)| nu == &&2)
+            .filter(|(_, nu)| nu >= &&2)
             .map(|(h, _)| h.to_string())
             .collect::<Vec<_>>();
         players.push(flex);
